@@ -8,7 +8,13 @@ from weasyprint import HTML
 import datetime
 from dotenv import load_dotenv
 
-# 1. Load cấu hình từ file .env
+# --- CẤU HÌNH FIX LỖI WINDOWS (CHO LOCAL) ---
+if os.name == 'nt':
+    gtk_path = r"C:\Program Files\GTK3-Runtime Win64\bin"
+    if os.path.exists(gtk_path):
+        os.add_dll_directory(gtk_path)
+
+# 1. Load cấu hình
 load_dotenv()
 
 APP_ID = os.getenv("LARK_APP_ID")
@@ -17,17 +23,16 @@ BASE_TOKEN = os.getenv("BASE_TOKEN")
 TABLE_MASTER_ID = os.getenv("TABLE_MASTER_ID")
 TABLE_DETAIL_ID = os.getenv("TABLE_DETAIL_ID")
 
-# 2. Khởi tạo Lark Client
+# 2. Khởi tạo Client
 client = lark.Client.builder().app_id(APP_ID).app_secret(APP_SECRET).build()
 
-# 3. Khởi tạo FastAPI
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
-# --- HÀM HỖ TRỢ LẤY DỮ LIỆU ---
+# --- HÀM HỖ TRỢ ---
 
 def get_master_record(record_id):
-    """Lấy thông tin 1 dòng từ bảng Master theo Record ID"""
+    """Lấy thông tin bảng Master"""
     req = GetAppTableRecordRequest.builder() \
         .app_token(BASE_TOKEN) \
         .table_id(TABLE_MASTER_ID) \
@@ -41,14 +46,17 @@ def get_master_record(record_id):
     return resp.data.record.fields
 
 def get_detail_items_by_so_phieu(so_phieu_text):
-    """
-    Lấy danh sách vật tư từ bảng Detail.
-    Logic: Tìm các dòng mà cột 'Số phiếu' bên bảng con == Số phiếu bên bảng cha
-    """
-    # Cú pháp Filter của Lark: CurrentValue.[Tên Cột] = "Giá trị"
-    # Lưu ý: Tên cột phải chính xác 100% như trong Base
+    """Lấy chi tiết vật tư theo Số phiếu"""
+    if not so_phieu_text:
+        return []
+
+    # Filter: Tìm các dòng ở bảng con có cột 'Số phiếu' chứa giá trị này
+    # Lưu ý: Với trường Link Record, filter hơi khác biệt, ta dùng CONTAINS hoặc bằng chính xác chuỗi
+    # Ở đây dùng cú pháp an toàn nhất cho Link Record text
     filter_cond = f'CurrentValue.[Số phiếu] = "{so_phieu_text}"'
     
+    print(f"🔍 Đang tìm Detail với filter: {filter_cond}") # Log debug
+
     req = ListAppTableRecordRequest.builder() \
         .app_token(BASE_TOKEN) \
         .table_id(TABLE_DETAIL_ID) \
@@ -63,89 +71,108 @@ def get_detail_items_by_so_phieu(so_phieu_text):
         return []
     
     if not resp.data.items:
+        print("⚠️ Không tìm thấy vật tư nào khớp mã phiếu này.")
         return []
         
     return [item.fields for item in resp.data.items]
 
-# --- API ENDPOINT ---
+# --- API CHÍNH ---
 
 @app.get("/print-phieu-xuat")
 async def print_phieu(request: Request, record_id: str):
-    print(f"🖨️ Đang xử lý yêu cầu in cho Record ID: {record_id}")
+    print(f"\n--- YÊU CẦU IN MỚI: {record_id} ---")
     
-    # B1: Lấy dữ liệu Master
+    # B1: Lấy Master
     master = get_master_record(record_id)
     if not master:
-        raise HTTPException(status_code=404, detail="Không tìm thấy phiếu xuất kho. Kiểm tra lại Record ID.")
+        # Thay vì lỗi 500, trả về thông báo rõ ràng
+        return Response(content="Lỗi: Không tìm thấy dữ liệu Phiếu (Master). Kiểm tra lại Record ID.", media_type="text/plain")
 
-    # Lấy Số phiếu để đi tìm các mặt hàng liên quan
+    # Debug dữ liệu master lấy được
+    print(f"✅ Dữ liệu Master: {master}")
+
+    # Lấy số phiếu (Dùng get để tránh lỗi nếu không có cột này)
+    # Lưu ý: Kiểm tra xem cột trong Base là "Số phiếu" hay "Số phiếu " (dư space)
+    # Dựa vào CSV bạn gửi, tên cột là "Số phiếu"
     so_phieu = master.get("Số phiếu", "")
+    
+    # Xử lý trường hợp số phiếu là list (do Link record hoặc Lookup trả về mảng)
+    if isinstance(so_phieu, list):
+        so_phieu = so_phieu[0].get("text", "") if so_phieu else ""
+    elif isinstance(so_phieu, dict):
+        so_phieu = so_phieu.get("text", "")
+    
+    so_phieu = str(so_phieu).strip() # Xóa khoảng trắng thừa
+
     if not so_phieu:
-        raise HTTPException(status_code=400, detail="Phiếu này chưa có Số phiếu, không thể tìm chi tiết.")
+        return Response(content="Lỗi: Phiếu này chưa có 'Số phiếu'. Vui lòng điền Số phiếu trên Lark trước.", media_type="text/plain")
 
-    # B2: Lấy dữ liệu Detail dựa trên Số phiếu
+    print(f"🎫 Số phiếu cần tìm: '{so_phieu}'")
+
+    # B2: Lấy Detail
     details = get_detail_items_by_so_phieu(so_phieu)
-    print(f"✅ Tìm thấy {len(details)} vật tư cho phiếu {so_phieu}")
+    print(f"📦 Tìm thấy {len(details)} dòng chi tiết.")
 
-    # B3: Xử lý dữ liệu hiển thị (Format ngày, số...)
-    # Xử lý ngày: Lark trả về timestamp (milliseconds)
+    # B3: Xử lý hiển thị (Safe Mode - Chống lỗi None)
+    
+    # Xử lý ngày
     ts_ngay = master.get("Ngày xuất nhập", 0)
+    ngay_str = "..."
     if isinstance(ts_ngay, int) and ts_ngay > 0:
         ngay_str = datetime.datetime.fromtimestamp(ts_ngay / 1000).strftime("%d/%m/%Y")
-    else:
-        ngay_str = "..."
 
-    # Mapping dữ liệu vào context để Jinja2 điền vào HTML
+    # Xử lý Hạng mục/Dự án (Tránh lỗi nếu cột này trống)
+    du_an_raw = master.get("Hạng mục", "")
+    du_an = str(du_an_raw) if du_an_raw else ""
+
     context = {
         "request": request,
         "current_date": datetime.datetime.now().strftime("%H:%M:%S %d/%m/%Y"),
-        
         "so_phieu": so_phieu,
-        # Nếu cột 'Hạng mục' là Link hoặc Text, cần xử lý safe
-        "du_an": master.get("Hạng mục", "NHÀ MÁY GOERTEK (GIAI ĐOẠN 3)"), 
-        "xuong": master.get("Xưởng", ""),
+        "du_an": du_an, 
+        "xuong": str(master.get("Xưởng", "") or ""),
         "ngay_xuat": ngay_str,
-        "noi_dung": master.get("Nội dung xuất", ""),
-        
+        "noi_dung": str(master.get("Nội dung xuất", "") or ""),
         "items": []
     }
 
-    # Loop qua danh sách detail để map đúng tên cột trong Base vào tên biến HTML
+    # Map dữ liệu Detail (Dựa chính xác vào tên cột CSV bảng con)
     for item in details:
-        # Nếu cột là kiểu số, format đẹp (ví dụ: 60.0)
+        # Safe get số lượng
         sl = item.get("SL đề nghị đợt này", 0)
-        sl_formatted = "{:,.2f}".format(float(sl)) if sl else "0"
+        try:
+            sl_float = float(sl)
+            sl_fmt = "{:,.2f}".format(sl_float).replace(".00", "")
+        except:
+            sl_fmt = str(sl)
 
         context["items"].append({
-            "ma_vt": item.get("Mã vật tư", ""),
-            "ten_sp": item.get("Tên vật tư, thiết bị", ""),
-            "dvt": item.get("Đơn vị tính", ""),
-            "quy_cach": item.get("Quy cách, Mã hiệu", ""),
-            "nhan_hieu": item.get("Nhãn hiệu", ""),
-            "so_luong": sl_formatted.replace(".00", ""), # Bỏ số thập phân nếu chẵn
-            "ghi_chu": item.get("Ghi chú", "")
+            "ma_vt": str(item.get("Mã vật tư", "") or ""),
+            "ten_sp": str(item.get("Tên vật tư, thiết bị", "") or ""), # Check kỹ tên cột này trong Base
+            "dvt": str(item.get("Đơn vị tính", "") or ""),
+            "quy_cach": str(item.get("Quy cách, Mã hiệu", "") or ""),
+            "nhan_hieu": str(item.get("Nhãn hiệu", "") or ""),
+            "so_luong": sl_fmt,
+            "ghi_chu": str(item.get("Ghi chú", "") or "")
         })
 
-    # B4: Tạo PDF
+    # B4: Render PDF
     try:
         template = templates.get_template("phieu_xuat_kho.html")
         html_content = template.render(context)
-        
-        # Render PDF
         pdf_bytes = HTML(string=html_content).write_pdf()
         
+        filename = f"PX-{so_phieu}.pdf"
+        # Dùng inline để mở preview, attachment để tải luôn
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"inline; filename={filename}"}
+        )
     except Exception as e:
-        print(f"❌ Lỗi WeasyPrint: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Lỗi tạo PDF: {str(e)}")
-
-    # B5: Trả file về trình duyệt
-    # Content-Disposition: inline giúp trình duyệt mở preview luôn thay vì tải ngầm
-    filename = f"PX-{so_phieu}.pdf"
-    return Response(
-        content=pdf_bytes,
-        media_type="application/pdf",
-        headers={"Content-Disposition": f"inline; filename={filename}"}
-    )
+        error_msg = f"Lỗi tạo PDF (WeasyPrint): {str(e)}"
+        print(f"❌ {error_msg}")
+        return Response(content=error_msg, media_type="text/plain")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
