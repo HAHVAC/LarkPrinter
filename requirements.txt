@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+lark-oapi
+jinja2
+weasyprint
+python-dotenv

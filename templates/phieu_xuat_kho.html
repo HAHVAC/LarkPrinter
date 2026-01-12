@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Phiếu Xuất Kho</title>
+    <style>
+        /* Cấu hình trang A4 */
+        @page { size: A4; margin: 2cm 1.5cm; }
+        body { font-family: 'Times New Roman', serif; font-size: 13px; line-height: 1.4; color: #000; }
+        
+        /* Header */
+        .header-table { width: 100%; border: none; margin-bottom: 25px; }
+        .header-table td { vertical-align: top; }
+        .logo { color: #E33E33; font-weight: bold; font-size: 18px; text-transform: uppercase; margin-bottom: 5px; }
+        .slogan { font-size: 10px; color: #000; font-weight: normal; }
+        .company-name { font-size: 15px; font-weight: bold; text-align: center; text-transform: uppercase; }
+        .title { font-size: 26px; font-weight: bold; text-align: center; margin-top: 10px; text-transform: uppercase; }
+        .date-print { font-size: 10px; font-style: italic; }
+
+        /* Thông tin chung */
+        .info-section { margin-bottom: 20px; }
+        .info-row { display: flex; justify-content: space-between; margin-bottom: 8px; }
+        .info-left { float: left; width: 60%; }
+        .info-right { float: right; width: 40%; text-align: right; }
+        .clearfix::after { content: ""; clear: both; display: table; }
+
+        /* Bảng dữ liệu */
+        .data-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+        .data-table th, .data-table td { border: 1px solid black; padding: 6px 8px; text-align: center; font-size: 12px; }
+        .data-table th { background-color: #DDEBF7; font-weight: bold; vertical-align: middle; }
+        .data-table td.text-left { text-align: left; }
+        .data-table td.text-right { text-align: right; }
+
+        /* Chữ ký */
+        .footer-table { width: 100%; border: none; text-align: center; margin-top: 20px; }
+        .footer-table td { vertical-align: top; padding: 0 10px; }
+        .signer-title { font-weight: bold; font-size: 13px; }
+        .signer-note { font-style: italic; font-size: 11px; margin-bottom: 70px; } /* Khoảng cách ký */
+        .signer-name { font-weight: bold; text-transform: uppercase; }
+    </style>
+</head>
+<body>
+    <table class="header-table">
+        <tr>
+            <td width="35%">
+                <div class="date-print">{{ current_date }}</div>
+                <div class="logo">
+                    TRƯỜNG AN
+                    <div class="slogan">LUÔN ĐỒNG HÀNH CÙNG BẠN</div>
+                </div>
+            </td>
+            <td width="65%">
+                <div class="company-name">CÔNG TY CỔ PHẦN CƠ ĐIỆN VÀ PCCC TRƯỜNG AN</div>
+                <div style="text-align: center; color: #FFD700; font-size: 14px;">★★★</div>
+                <div class="title">PHIẾU XUẤT KHO</div>
+            </td>
+        </tr>
+    </table>
+
+    <div class="info-section">
+        <div class="clearfix info-row">
+            <div class="info-left">Dự án: <b>{{ du_an }}</b></div>
+            <div class="info-right">Số phiếu: {{ so_phieu }}</div>
+        </div>
+        <div class="clearfix info-row">
+            <div class="info-left">Nhà xưởng: {{ xuong }}</div>
+            <div class="info-right">Ngày/tháng: {{ ngay_xuat }}</div>
+        </div>
+        <div class="clearfix info-row">
+            <div class="info-left">Tổ đội: ĐỘI BẢO TRÌ</div>
+        </div>
+        <div class="clearfix info-row">
+            <div class="info-left">Diễn giải: {{ noi_dung }}</div>
+        </div>
+    </div>
+
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th width="5%">Stt</th>
+                <th width="12%">Mã vật tư</th>
+                <th width="30%">Tên sản phẩm</th>
+                <th width="8%">Đvt</th>
+                <th width="15%">Quy cách, Mã hiệu</th>
+                <th width="10%">Nhãn hiệu</th>
+                <th width="10%">Số lượng</th>
+                <th width="10%">Thực xuất</th>
+                <th width="10%">Ghi chú</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ item.ma_vt }}</td>
+                <td class="text-left">{{ item.ten_sp }}</td>
+                <td>{{ item.dvt }}</td>
+                <td class="text-left">{{ item.quy_cach }}</td>
+                <td>{{ item.nhan_hieu }}</td>
+                <td class="text-right">{{ item.so_luong }}</td>
+                <td></td> <td class="text-left">{{ item.ghi_chu }}</td>
+            </tr>
+            {% endfor %}
+            
+            {% if items|length < 5 %}
+                {% for i in range(5 - items|length) %}
+                <tr>
+                    <td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+                </tr>
+                {% endfor %}
+            {% endif %}
+        </tbody>
+    </table>
+
+    <table class="footer-table">
+        <tr>
+            <td width="25%">
+                <div class="signer-title">Phê duyệt</div>
+                <div class="signer-note">(Ký, ghi rõ họ tên)</div>
+            </td>
+            <td width="25%">
+                <div class="signer-title">Người lập</div>
+                <div class="signer-note">(Ký, ghi rõ họ tên)</div>
+                <div class="signer-name">Nguyễn Quang Long</div>
+            </td>
+            <td width="25%">
+                <div class="signer-title">Người nhận</div>
+                <div class="signer-note">(Ký, ghi rõ họ tên)</div>
+            </td>
+            <td width="25%">
+                <div class="signer-title">Thủ kho</div>
+                <div class="signer-note">(Ký, ghi rõ họ tên)</div>
+                <div class="signer-name">Ngô Văn Đức</div>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
