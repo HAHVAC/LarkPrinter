@@ -6,8 +6,9 @@
     <style>
         /* Cấu hình trang A4 */
         @page { size: A4; margin: 2cm 1.5cm; }
-        body { font-family: 'Times New Roman', serif; font-size: 13px; line-height: 1.4; color: #000; }
-        
+        * { box-sizing: border-box; }
+        body { font-family: "Times New Roman", serif; font-size: 13px; line-height: 1.4; color: #000; }
+
         /* Header */
         .header-table { width: 100%; border: none; margin-bottom: 25px; }
         .header-table td { vertical-align: top; }
@@ -19,9 +20,9 @@
 
         /* Thông tin chung */
         .info-section { margin-bottom: 20px; }
-        .info-row { display: flex; justify-content: space-between; margin-bottom: 8px; }
-        .info-left { float: left; width: 60%; }
-        .info-right { float: right; width: 40%; text-align: right; }
+        .info-row { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+        .info-left { width: 60%; }
+        .info-right { width: 40%; text-align: right; }
         .clearfix::after { content: ""; clear: both; display: table; }
 
         /* Bảng dữ liệu */
@@ -31,11 +32,15 @@
         .data-table td.text-left { text-align: left; }
         .data-table td.text-right { text-align: right; }
 
+        /* In nhiều trang: lặp header & tránh xé dòng */
+        thead { display: table-header-group; }
+        tr { page-break-inside: avoid; }
+
         /* Chữ ký */
         .footer-table { width: 100%; border: none; text-align: center; margin-top: 20px; }
         .footer-table td { vertical-align: top; padding: 0 10px; }
         .signer-title { font-weight: bold; font-size: 13px; }
-        .signer-note { font-style: italic; font-size: 11px; margin-bottom: 70px; } /* Khoảng cách ký */
+        .signer-note { font-style: italic; font-size: 11px; margin-bottom: 70px; }
         .signer-name { font-weight: bold; text-transform: uppercase; }
     </style>
 </head>
@@ -58,50 +63,54 @@
     </table>
 
     <div class="info-section">
-        <div class="clearfix info-row">
+        <div class="info-row">
             <div class="info-left">Dự án: <b>{{ du_an }}</b></div>
             <div class="info-right">Số phiếu: {{ so_phieu }}</div>
         </div>
-        <div class="clearfix info-row">
+        <div class="info-row">
             <div class="info-left">Nhà xưởng: {{ xuong }}</div>
             <div class="info-right">Ngày/tháng: {{ ngay_xuat }}</div>
         </div>
-        <div class="clearfix info-row">
+        <div class="info-row">
             <div class="info-left">Tổ đội: ĐỘI BẢO TRÌ</div>
+            <div class="info-right"></div>
         </div>
-        <div class="clearfix info-row">
+        <div class="info-row">
             <div class="info-left">Diễn giải: {{ noi_dung }}</div>
+            <div class="info-right"></div>
         </div>
     </div>
 
     <table class="data-table">
         <thead>
             <tr>
+                <!-- Tổng 100% -->
                 <th width="5%">Stt</th>
                 <th width="12%">Mã vật tư</th>
-                <th width="30%">Tên sản phẩm</th>
-                <th width="8%">Đvt</th>
+                <th width="28%">Tên sản phẩm</th>
+                <th width="7%">Đvt</th>
                 <th width="15%">Quy cách, Mã hiệu</th>
                 <th width="10%">Nhãn hiệu</th>
-                <th width="10%">Số lượng</th>
-                <th width="10%">Thực xuất</th>
-                <th width="10%">Ghi chú</th>
+                <th width="8%">Số lượng</th>
+                <th width="7%">Thực xuất</th>
+                <th width="8%">Ghi chú</th>
             </tr>
         </thead>
         <tbody>
             {% for item in items %}
             <tr>
                 <td>{{ loop.index }}</td>
-                <td>{{ item.ma_vt }}</td>
+                <td class="text-left">{{ item.ma_vt }}</td>
                 <td class="text-left">{{ item.ten_sp }}</td>
                 <td>{{ item.dvt }}</td>
                 <td class="text-left">{{ item.quy_cach }}</td>
-                <td>{{ item.nhan_hieu }}</td>
+                <td class="text-left">{{ item.nhan_hieu }}</td>
                 <td class="text-right">{{ item.so_luong }}</td>
-                <td></td> <td class="text-left">{{ item.ghi_chu }}</td>
+                <td></td>
+                <td class="text-left">{{ item.ghi_chu }}</td>
             </tr>
             {% endfor %}
-            
+
             {% if items|length < 5 %}
                 {% for i in range(5 - items|length) %}
                 <tr>
